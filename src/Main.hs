@@ -12,11 +12,11 @@ main = do
     let tree = buildTree lexicon
     args <- getArgs
     let (term, limit) = case args of
-                            (t:l:_) -> (t, read l)
+                            (t:l:_) -> (t, read l :: Int)
                             [t]     -> (t, maxBound)
                             []      -> ("fartknocker", maxBound)
     putStrLn $ "searching for anagrams for '" ++ term ++ "'"
-    let results = take limit . findFullSets tree $ prepareTerm $ Text.pack term
+    let results = take limit . findFullAnagrams tree $ prepareTerm $ Text.pack term
     forM_ results $ \res ->
         putStrLn $ show res
     putStrLn $ "Found " ++ (show $ length results) ++ " anagrams."

@@ -38,22 +38,13 @@ pruneLexicon = filter appropes
     isProper = T.any isUpper
     hasNoVowels = not . T.any (`elem` "aeoiuy")
 
-type AnagramResults = [[Text]]
-
 data AnaTree =
       AnaBranch { atChildren :: Map Int AnaTree }
     | AnaLeaf   { atTerms :: Set Text }
   deriving (Eq, Show)
 
-newtype Histogram = Histogram (Map Char Int)
-  deriving (Eq, Show)
-
-makeHistogram :: Text -> Histogram
-makeHistogram term = Histogram $ Map.fromList [(head chargroup, length chargroup)
-                                                | chargroup <- group (sort $ T.unpack term)]
-
 emptyAnaTree :: AnaTree
-emptyAnaTree = AnaBranch Map.empty
+emptyAnaTree = AnaBranch mempty
 
 -- alphabet ranked by descending frequency in English usage
 -- https://www.math.cornell.edu/~mec/2003-2004/cryptography/subs/frequencies.html
@@ -64,33 +55,13 @@ alphabet = "etaoinsrhdlucmfywgpbvkxqjz"
 charFrequency :: Char -> Text -> Int
 charFrequency needle = T.foldl' (\acc c -> if toLower c == needle then acc + 1 else acc) 0
 
--- | Represents a word from the lexicon enriched with state for the tree-building process
-data EnrichedTerm = EnrichedTerm { etWord :: Text         -- verbatim text of word
-                                 , etHist :: Map Char Int -- "unconsumed" histogram
-                                 }
-  deriving Show
+newtype Histogram = Histogram (Map Char Int)
+  deriving (Eq, Show)
 
--- | Annotate a term (word) with a character histogram.
--- enrichTerm "abacab" == EnrichedTerm "abacab" (Map.fromList [('a': 3), ('b': 2), ('c': 1)])
-enrichTerm :: Text -> EnrichedTerm
-enrichTerm term = EnrichedTerm term hist
-  where
-    hist = Map.fromList [(head chargroup, length chargroup)
-                         | chargroup <- group (sort $ T.unpack term)]
-
-
-getCharFrequency :: Char -> EnrichedTerm -> Int
-getCharFrequency c term = fromMaybe 0 $ Map.lookup c (etHist term)
-
--- | Derive a new EnrichedTerm by subtracting one instance of a particular character from its histogram.
--- Used to 'consume' characters during tree-building.
--- Will throw a runtime error if the character is not found in the term!
-subtractChar :: Char -> EnrichedTerm -> EnrichedTerm
-subtractChar c term = EnrichedTerm (etWord term) (Map.alter f c (etHist term))
-  where
-    f Nothing      = error $ "Attempted to subtract character " ++ [c] ++
-                               " that is not present in histogram " ++ (show $ etHist term)
-    f (Just count) = Just (count - 1)
+-- not used yet
+makeHistogram :: Text -> Histogram
+makeHistogram term = Histogram $ Map.fromList [(head chargroup, length chargroup)
+                                                | chargroup <- group (sort $ T.unpack term)]
 
 {-
 Assume we have the following information:
@@ -110,9 +81,11 @@ For each term in the lexicon:
     Append the current term to the list of words on the current (leaf) node
 -}
 
+-- build an AnaTree from a list of terms
 buildTree :: [Text] -> AnaTree
 buildTree = foldl' (flip insertTerm) emptyAnaTree
 
+-- | make an updated AnaTree with the specified term added to it
 insertTerm :: Text -> AnaTree -> AnaTree
 insertTerm term = computeLayer alphabet
   where
@@ -122,53 +95,40 @@ insertTerm term = computeLayer alphabet
     computeLayer (c:alpharest) (AnaBranch kids) =
         let freq = charFrequency c term
             upsert :: Maybe AnaTree -> Maybe AnaTree
-            upsert existing = let defaultSubtree = if alpharest == []
+            upsert existing = let defaultSubtree = if null alpharest
                                                     then AnaLeaf mempty
                                                     else AnaBranch mempty
                                   subtree = fromMaybe defaultSubtree existing
                                in Just $ computeLayer alpharest subtree
          in AnaBranch $ Map.alter upsert freq kids
 
--- search the tree for all paths that involve less than or equal frequency counts to our term
+-- | search the tree for all paths that involve less than or equal frequency counts to our term
+-- | and return all terms found at the winning leaves
 findSubAnagrams :: AnaTree -> Text -> [Text]
 findSubAnagrams tree term = go tree alphabet
   where
     go (AnaLeaf terms)  _             = Set.toList terms
     go (AnaBranch kids) (c:alpharest) = do
         (freq, subtree) <- Map.toAscList kids
-        guard $ freq <= charFrequency c term
+        guard $ freq <= charFrequency c term -- TODO: use histogram instead of counting every time?
         go subtree alpharest
 
--- for each sub anagram
---   compute residual
---   find subanagrams of residual
---   if no subanagrams for residual
---     drop this sub anagram
-
-findFullSets :: AnaTree -> Text -> [[Text]]
-findFullSets tree term = prune $ do
+-- | lazily search for multi-word groups that are exact anagrams of the given term
+findFullAnagrams :: AnaTree -> Text -> [[Text]]
+findFullAnagrams tree term = prune $ do
     sub <- findSubAnagrams tree term
     let residual = subtractTerm term sub
     if residual == mempty
         then return [sub]
         else do
-            remaining <- findFullSets tree residual
+            remaining <- findFullAnagrams tree residual
             return $ sub : remaining
   where
 --     prune = nub . map sort
     prune = id
 
+-- feels dirty
+subtractTerm :: Text -> Text -> Text
 subtractTerm t1 t2 = T.pack $ foldl' (flip delete) (T.unpack t1) (T.unpack t2)
 
 
-testWords :: [Text]
-testWords = map T.pack ["a", "ab", "ba", "cab", "abacab", "acabab"]
-
-testTree = buildTree testWords
-{-
-testTree =
-    AnaBranch {atChildren = fromList [(0,AnaBranch {atChildren = fromList [(0,AnaBranch {atChildren = fromList [(1,AnaLeaf {atTerms = fromList ["a"]})]}),
-                                                                           (1,AnaBranch {atChildren = fromList [(1,AnaLeaf {atTerms = fromList ["ab","ba"]})]})]}),
-                                      (1,AnaBranch {atChildren = fromList [(1,AnaBranch {atChildren = fromList [(1,AnaLeaf {atTerms = fromList ["cab"]})]}),
-                                      (2,AnaBranch {atChildren = fromList [(3,AnaLeaf {atTerms = fromList ["abacab","acabab"]})]})]})]}
--}
