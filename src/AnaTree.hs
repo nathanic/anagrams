@@ -2,7 +2,7 @@
 module AnaTree where
 
 import           Control.Monad (guard)
-import           Data.Char    (isAlpha)
+import           Data.Char    (isAlpha, isNumber, isUpper, toLower)
 import           Data.List    (foldl', foldl1', group, head, length, sort, delete, nub)
 import           Data.Map     (Map)
 import qualified Data.Map     as Map
@@ -10,12 +10,33 @@ import           Data.Set     (Set)
 import qualified Data.Set     as Set
 import           Data.Maybe   (fromMaybe)
 import           Data.Text    (Text)
-import qualified Data.Text    as Text
-import qualified Data.Text.IO as Text
+import qualified Data.Text    as T
+import qualified Data.Text.IO as T
 
 prepareTerm :: Text -> Text
-prepareTerm = Text.toLower . Text.filter isAlpha
+prepareTerm = T.toLower . T.filter isAlpha
 
+pruneLexicon :: [Text] -> [Text]
+pruneLexicon = filter appropes
+  where
+    appropes term = not $ any ($ term)
+                              [ T.null
+                              , isAcronym
+                              , isSlashy
+                              , isDotted
+                              , isHyphened
+                              , isProper
+                              , isNumeric
+                              , hasNoVowels
+                              ]
+    isAcronym = T.all isUpper
+    isNumeric = T.any isNumber
+    isSlashy = T.any (== '/')
+    isDotted = T.any (== '.')
+    isHyphened term = T.pack "-" `T.isPrefixOf` term ||
+                      T.pack "-" `T.isSuffixOf` term
+    isProper = T.any isUpper
+    hasNoVowels = not . T.any (`elem` "aeoiuy")
 
 type AnagramResults = [[Text]]
 
@@ -23,6 +44,13 @@ data AnaTree =
       AnaBranch { atChildren :: Map Int AnaTree }
     | AnaLeaf   { atTerms :: Set Text }
   deriving (Eq, Show)
+
+newtype Histogram = Histogram (Map Char Int)
+  deriving (Eq, Show)
+
+makeHistogram :: Text -> Histogram
+makeHistogram term = Histogram $ Map.fromList [(head chargroup, length chargroup)
+                                                | chargroup <- group (sort $ T.unpack term)]
 
 emptyAnaTree :: AnaTree
 emptyAnaTree = AnaBranch Map.empty
@@ -34,7 +62,7 @@ alphabet = "etaoinsrhdlucmfywgpbvkxqjz"
 -- alphabet = "cba" -- reduced for testing
 
 charFrequency :: Char -> Text -> Int
-charFrequency needle = Text.foldl' (\acc c -> if c == needle then acc + 1 else acc) 0
+charFrequency needle = T.foldl' (\acc c -> if toLower c == needle then acc + 1 else acc) 0
 
 -- | Represents a word from the lexicon enriched with state for the tree-building process
 data EnrichedTerm = EnrichedTerm { etWord :: Text         -- verbatim text of word
@@ -48,7 +76,7 @@ enrichTerm :: Text -> EnrichedTerm
 enrichTerm term = EnrichedTerm term hist
   where
     hist = Map.fromList [(head chargroup, length chargroup)
-                         | chargroup <- group (sort $ Text.unpack term)]
+                         | chargroup <- group (sort $ T.unpack term)]
 
 
 getCharFrequency :: Char -> EnrichedTerm -> Int
@@ -101,7 +129,7 @@ insertTerm term = computeLayer alphabet
                                in Just $ computeLayer alpharest subtree
          in AnaBranch $ Map.alter upsert freq kids
 
--- search the tree for all paths that involve less than or equal frequency counts than our term
+-- search the tree for all paths that involve less than or equal frequency counts to our term
 findSubAnagrams :: AnaTree -> Text -> [Text]
 findSubAnagrams tree term = go tree alphabet
   where
@@ -127,13 +155,14 @@ findFullSets tree term = prune $ do
             remaining <- findFullSets tree residual
             return $ sub : remaining
   where
-    prune = nub . map sort
+--     prune = nub . map sort
+    prune = id
 
-subtractTerm t1 t2 = Text.pack $ foldl' (flip delete) (Text.unpack t1) (Text.unpack t2)
+subtractTerm t1 t2 = T.pack $ foldl' (flip delete) (T.unpack t1) (T.unpack t2)
 
 
 testWords :: [Text]
-testWords = map Text.pack ["a", "ab", "ba", "cab", "abacab", "acabab"]
+testWords = map T.pack ["a", "ab", "ba", "cab", "abacab", "acabab"]
 
 testTree = buildTree testWords
 {-
