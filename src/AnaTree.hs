@@ -3,7 +3,7 @@ module AnaTree where
 
 import           Control.Monad (guard)
 import           Data.Char    (isAlpha, isNumber, isUpper, toLower)
-import           Data.List    (foldl', foldl1', group, head, length, sort, delete, nub)
+import           Data.List    (foldl', group, head, length, sort, delete)
 import           Data.Map     (Map)
 import qualified Data.Map     as Map
 import           Data.Set     (Set)
@@ -11,7 +11,7 @@ import qualified Data.Set     as Set
 import           Data.Maybe   (fromMaybe)
 import           Data.Text    (Text)
 import qualified Data.Text    as T
-import qualified Data.Text.IO as T
+--import qualified Data.Text.IO as T
 
 prepareTerm :: Text -> Text
 prepareTerm = T.toLower . T.filter isAlpha
