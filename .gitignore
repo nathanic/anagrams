@@ -1,0 +1,5 @@
+dist
+*.iml
+.idea
+.stack-work/
+.#*
