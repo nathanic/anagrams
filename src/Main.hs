@@ -1,4 +1,4 @@
-import AnaTree
+import Data.AnaTree
 
 import           Data.List  (intercalate)
 import           Control.Monad (forM_)

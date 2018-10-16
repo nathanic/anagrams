@@ -1,5 +1,5 @@
 -- http://blog.notdot.net/2007/10/Damn-Cool-Algorithms-Part-3-Anagram-Trees
-module AnaTree where
+module Data.AnaTree where
 
 import           Control.Monad (guard)
 import           Data.Char    (isAlpha, isNumber, isUpper, toLower)

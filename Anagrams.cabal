@@ -15,7 +15,7 @@ cabal-version:        >=1.10
 
 executable anagrams
   main-is:              Main.hs
-  -- other-modules:
+  other-modules:        Data.AnaTree
   -- other-extensions:
   build-depends:        base >= 4.7 && < 5, text, containers
   hs-source-dirs:       src
