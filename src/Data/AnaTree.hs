@@ -1,7 +1,7 @@
 -- http://blog.notdot.net/2007/10/Damn-Cool-Algorithms-Part-3-Anagram-Trees
 module Data.AnaTree where
 
-import           Control.Monad (guard)
+import           Control.Monad (guard, when)
 import           Data.Char    (isAlpha, isNumber, isUpper, toLower)
 import           Data.List    (foldl', group, head, length, sort, delete)
 import           Data.Map     (Map)
@@ -11,6 +11,10 @@ import qualified Data.Set     as Set
 import           Data.Maybe   (fromMaybe)
 import           Data.Text    (Text)
 import qualified Data.Text    as T
+
+import           Data.Random (RVar)
+import           Data.Random.List (randomElement, shuffle)
+
 --import qualified Data.Text.IO as T
 
 prepareTerm :: Text -> Text
@@ -103,6 +107,7 @@ insertTerm term = computeLayer alphabet
                                in Just $ computeLayer alpharest subtree
          in AnaBranch $ Map.alter upsert freq kids
 
+
 -- | search the tree for all paths that involve less than or equal frequency counts to our term
 -- | and return all terms found at the winning leaves
 findSubAnagrams :: AnaTree -> Text -> [Text]
@@ -110,7 +115,7 @@ findSubAnagrams tree term = go tree alphabet
   where
     go (AnaLeaf terms)  _             = Set.toList terms
     go (AnaBranch kids) (c:alpharest) = do
-        (freq, subtree) <- Map.toAscList kids
+        (freq, subtree) <- Map.toDescList kids
         guard $ freq <= charFrequency c term -- TODO: use histogram instead of counting every time?
         go subtree alpharest
 
@@ -128,9 +133,31 @@ findFullAnagrams tree term = prune $ do
 --     prune = nub . map sort
     prune = id
 
--- produce an anagram by making bounded-random choices when looking for subanagrams
 -- feels dirty
 subtractTerm :: Text -> Text -> Text
 subtractTerm t1 t2 = T.pack $ foldl' (flip delete) (T.unpack t1) (T.unpack t2)
 
+-- | search for one random subanagram for the specified term by choosing random child branches
+randomSubAnagrams :: AnaTree -> Text -> RVar [Text]
+randomSubAnagrams tree term = go tree alphabet
+  where
+    go :: AnaTree -> [Char] -> RVar [Text]
+    go (AnaLeaf terms)  _             = shuffle $ Set.toList terms
+    go (AnaBranch kids) (c:alpharest) = undefined -- do
+      --subtrees <- shuffle $ [ subtree | (freq, subtree) <- Map.toList kids
+                                      --, freq <= charFrequency c term ]
+      --forM squids $ \(freq, subtree) -> go subtree alpharest
 
+fullAnagramsWithRandomStart :: AnaTree -> Text -> RVar [[Text]]
+fullAnagramsWithRandomStart tree term = do
+  subs <- randomSubAnagrams tree term
+  sub <-randomElement subs
+  let residual = subtractTerm term sub
+  return $ if residual == mempty
+            then [[sub]]
+            else map (sub :) $ findFullAnagrams tree residual
+
+--shuffledSubAnagrams :: AnaTree -> Text -> RVar [Text]
+--shuffledSubAnagrams = shuffle . findSubAnagrams
+
+  
