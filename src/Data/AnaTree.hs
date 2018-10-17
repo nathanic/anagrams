@@ -52,6 +52,7 @@ alphabet :: [Char]
 alphabet = "etaoinsrhdlucmfywgpbvkxqjz"
 -- alphabet = "cba" -- reduced for testing
 
+  -- TODO: make ü count as u, etc.
 charFrequency :: Char -> Text -> Int
 charFrequency needle = T.foldl' (\acc c -> if toLower c == needle then acc + 1 else acc) 0
 
@@ -127,6 +128,7 @@ findFullAnagrams tree term = prune $ do
 --     prune = nub . map sort
     prune = id
 
+-- produce an anagram by making bounded-random choices when looking for subanagrams
 -- feels dirty
 subtractTerm :: Text -> Text -> Text
 subtractTerm t1 t2 = T.pack $ foldl' (flip delete) (T.unpack t1) (T.unpack t2)
