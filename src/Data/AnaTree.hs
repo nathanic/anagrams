@@ -3,7 +3,8 @@ module Data.AnaTree where
 
 import           Control.Monad (guard, when)
 import           Data.Char    (isAlpha, isNumber, isUpper, toLower)
-import           Data.List    (foldl', group, head, length, sort, delete)
+import           Data.List    (foldl', group, head, length, sort, delete, sortBy)
+import           Data.Function (on)
 import           Data.Map     (Map)
 import qualified Data.Map     as Map
 import           Data.Set     (Set)
@@ -113,7 +114,7 @@ insertTerm term = computeLayer alphabet
 findSubAnagrams :: AnaTree -> Text -> [Text]
 findSubAnagrams tree term = go tree alphabet
   where
-    go (AnaLeaf terms)  _             = Set.toList terms
+    go (AnaLeaf terms)  _             = sortBy (compare `on` (0 -) . T.length) $ Set.toList terms
     go (AnaBranch kids) (c:alpharest) = do
         (freq, subtree) <- Map.toDescList kids
         guard $ freq <= charFrequency c term -- TODO: use histogram instead of counting every time?

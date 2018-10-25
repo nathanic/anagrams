@@ -2,6 +2,7 @@ import Data.AnaTree
 
 import           Data.List (nub,sort)
 import           Control.Monad (forM_)
+import           Data.Text    (Text)
 import qualified Data.Text    as Text
 import qualified Data.Text.IO as Text
 import           System.Random (randomRIO)
@@ -16,22 +17,29 @@ main = AP.runApp (AP.mkDefaultApp argSpec "anagrams") makeAnagrams
 
 makeAnagrams :: Args -> IO ()
 makeAnagrams (Args rando wordfile poolSize term limit) = do
-    lexicon <- pruneLexicon . Text.lines <$> Text.readFile wordfile
+    gen <- MWC.createSystemRandom
+    lexicon <- loadLexicon gen
     let tree    = buildTree lexicon
-        uniqify = nub . map sort
+        uniqify = nub . map sort -- ignore equivalent orderings
         snip    = if limit > 0 then take limit else id
         term'   = prepareTerm $ Text.pack term
+        -- gaze not too deeply into `alles`; can literally take hours to compute
+        alles   = findFullAnagrams tree term'
     results <- if rando
-      then do
-        mwc <- MWC.create
-        sampleFrom mwc $ do
-          pool <- mapM shuffle $ uniqify $ take (max poolSize limit) $ findFullAnagrams tree term'
+      then
+        sampleFrom gen $ do
+          pool <- mapM shuffle $ uniqify $ take (max poolSize limit) alles
           snip <$> shuffle pool
-            
-            
-      else return $ snip $ findFullAnagrams tree term'
+      else
+        return $ snip alles
     forM_ results $ putStrLn . unwords . map Text.unpack
-
+  where
+    loadLexicon :: MWC.GenIO -> IO [Text]
+    loadLexicon gen = do
+      lexicon <- pruneLexicon . Text.lines <$> Text.readFile wordfile
+      if rando
+        then sampleFrom gen $ shuffle lexicon
+        else return lexicon
 
 data Args = Args { argRandom :: Bool
                  , argWordFile :: String
